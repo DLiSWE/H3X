@@ -1,3 +1,5 @@
+mod ping;
+
 // This file implements a QUIC client using the `quinn` library.
 // It connects to a QUIC server, sends a message, and handles the connection asynchronously.
 // This client is intended for local development and testing purposes.
@@ -11,12 +13,9 @@
 use quinn::{ClientConfig, Endpoint};
 use rustls::{ClientConfig as RustlsClientConfig, RootCertStore};
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::time::sleep;
 
+use ping::start_ping_loop;
 use crate::tls::generate_or_load_cert;
-use crate::protocol::frame::H3XFrame;
-use crate::protocol::types::FrameType;
 
 pub async fn run_client() {
     let (cert_chain, _) = generate_or_load_cert();
@@ -67,47 +66,5 @@ pub async fn run_client() {
 
     println!("🤝 Connected to server");
 
-    let mut retry_delay = Duration::from_secs(1);
-
-    loop {
-        match conn.open_bi().await {
-            Ok((mut send, mut recv)) => {
-                retry_delay = Duration::from_secs(1); // reset on success
-
-                let frame = H3XFrame {
-                    stream_id: 99,
-                    frame_type: FrameType::Ping,
-                    payload: vec![],
-                };
-
-                if let Err(e) = frame.write_to(&mut send).await {
-                    eprintln!("❌ Failed to send frame: {e}");
-                    continue;
-                }
-
-                if let Err(e) = send.finish().await {
-                    eprintln!("❌ Failed to finish stream: {e}");
-                    continue;
-                }
-
-                match H3XFrame::read_from(&mut recv).await {
-                    Ok(Some(reply)) => println!("📬 Server replied: {:?}", reply),
-                    Ok(None) => println!("📴 Server closed stream"),
-                    Err(e) => eprintln!("❌ Failed to read response: {e}"),
-                }
-            }
-
-            Err(e) => {
-                eprintln!("❌ Failed to open stream: {e}. Retrying in {}s...", retry_delay.as_secs());
-                sleep(retry_delay).await;
-                retry_delay *= 2;
-                if retry_delay > Duration::from_secs(30) {
-                    retry_delay = Duration::from_secs(30);
-                }
-            }
-        }
-
-        sleep(Duration::from_secs(5)).await;
-    }
-
+    start_ping_loop(conn).await;
 }

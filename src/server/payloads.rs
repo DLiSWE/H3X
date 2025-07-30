@@ -6,6 +6,7 @@ use serde::Deserialize;
 pub struct AuthPayload {
     pub client_id: String,
     pub token: String,
+    pub namespace: String,
 }
 
 /// Payload structure for Event frames
@@ -14,5 +15,6 @@ pub struct EventPayload {
     pub r#type: String,
     pub level: Option<String>,
     pub message: String,
+    pub namespace: String,
     pub timestamp: String,
 }
