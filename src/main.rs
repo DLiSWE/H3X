@@ -3,6 +3,7 @@ mod server;
 mod client;
 mod protocol;
 mod utils;
+mod state;
 
 use tokio::signal;
 

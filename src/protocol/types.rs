@@ -5,6 +5,9 @@ pub enum FrameType {
     Pong = 2,
     Auth = 3,
     Event = 4,
+    FetchEvent = 5,
+    EventsBatch = 6,
+    AckEvent = 7,
 }
 
 impl From<u8> for FrameType {
@@ -14,6 +17,9 @@ impl From<u8> for FrameType {
             2 => FrameType::Pong,
             3 => FrameType::Auth,
             4 => FrameType::Event,
+            5 => FrameType::FetchEvent,
+            6 => FrameType::EventsBatch,
+            7 => FrameType::AckEvent,
             _ => FrameType::Ping,
         }
     }
