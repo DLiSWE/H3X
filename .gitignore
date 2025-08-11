@@ -5,3 +5,4 @@
 cert.der
 key.der
 data/*
+*.env

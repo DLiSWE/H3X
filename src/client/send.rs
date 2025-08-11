@@ -1,29 +1,47 @@
-use crate::protocol::frame::H3XFrame;
-use crate::protocol::payloads::AckEventPayload;
-use crate::protocol::types::FrameType;
-use crate::utils::serialize_payload;
-
 use quinn::SendStream;
-use uuid::Uuid;
 
+use crate::protocol::h3x as pb;
+
+// ACK an event back to the server
 pub async fn ack_event(
     stream_id: u32,
     namespace: String,
-    event_id: Uuid,
+    event_id: String,
     send: &mut SendStream,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let payload = AckEventPayload {
-        namespace,
-        event_id,
-    };
-
-    let frame = H3XFrame {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let frame = pb::Frame {
+        version: 1,
         stream_id,
-        frame_type: FrameType::AckEvent,
-        payload: serialize_payload(&payload),
+        r#type: pb::FrameType::AckEvent as i32,
+        payload: Some(pb::frame::Payload::AckEvent(pb::AckEvent {
+            namespace,
+            event_id: event_id.to_string(), // proto expects string
+        })),
     };
 
     frame.write_to(send).await?;
-    send.finish().await?;
+    Ok(())
+}
+
+// Request events for a namespace
+pub async fn fetch_events(
+    stream_id: u32,
+    namespace: String,
+    max: usize,
+    send: &mut SendStream,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let max_events = u32::try_from(max).unwrap_or(u32::MAX);
+
+    let frame = pb::Frame {
+        version: 1,
+        stream_id,
+        r#type: pb::FrameType::FetchEvents as i32,
+        payload: Some(pb::frame::Payload::FetchEvents(pb::FetchEvents {
+            namespace,
+            max_events,
+        })),
+    };
+
+    frame.write_to(send).await?;
     Ok(())
 }

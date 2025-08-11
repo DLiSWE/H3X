@@ -1,0 +1,89 @@
+syntax = "proto3";
+package h3x;
+
+// Enum representing all supported frame types.
+// These values match your old FrameType u8 mapping exactly.
+enum FrameType {
+  FRAME_TYPE_UNSPECIFIED = 0; // default (unused in practice)
+  FRAME_TYPE_PING        = 1;
+  FRAME_TYPE_PONG        = 2;
+  FRAME_TYPE_AUTH        = 3;
+  FRAME_TYPE_EVENT       = 4;
+  FRAME_TYPE_FETCH_EVENTS= 5;
+  FRAME_TYPE_EVENTS_BATCH= 6;
+  FRAME_TYPE_ACK_EVENT   = 7;
+  FRAME_TYPE_ACK         = 8;
+  FRAME_TYPE_NACK        = 9;
+  FRAME_TYPE_AUTH_ACK    = 10;
+  FRAME_TYPE_AUTH_ERROR  = 11;
+}
+
+// -------- Payload Messages --------
+
+// Sent by client to authenticate itself.
+message Auth {
+  string client_id = 1;
+  string token     = 2;
+  repeated string namespaces = 3;
+}
+
+// Represents a single application event.
+message Event {
+  string id         = 1; // UUID as string
+  string namespace  = 2;
+  string type       = 3; // "Error", "Metric", etc.
+  string message    = 4;
+  bytes  data       = 5; // arbitrary serialized payload
+  int64  timestamp  = 6; // Unix seconds
+  map<string,string> metadata = 7;
+}
+
+// Request from client to fetch queued events.
+message FetchEvents {
+  string namespace  = 1;
+  uint32 max_events = 2; // optional limit
+}
+
+// Acknowledges receipt of a specific event.
+message AckEvent {
+  string namespace  = 1;
+  string event_id   = 2; // UUID as string
+}
+
+// Batch of events sent from server to client.
+message EventsBatch {
+  repeated Event events = 1;
+}
+
+// Ping Pong
+message Ping {
+  uint64 timestamp_ms = 1; // client send time
+  uint64 seq          = 2; // optional sequence/nonce
+}
+
+message Pong {
+  uint64 echo_timestamp_ms = 1; // echoed from Ping.timestamp_ms
+  uint64 server_time_ms    = 2; // optional server clock
+  uint64 seq               = 3; // echoed seq
+}
+
+// -------- Envelope --------
+
+// The main transport frame.
+// All data is sent as a length-delimited Frame over the stream.
+message Frame {
+  uint32 version    = 1; // Protocol version
+  uint32 stream_id  = 2; // Logical stream ID
+  FrameType type    = 3; // Kind of payload
+
+  // Exactly one payload should be set per frame.
+  oneof payload {
+    Auth        auth         = 10;
+    Event       event        = 11;
+    FetchEvents fetch_events = 12;
+    EventsBatch events_batch = 13;
+    AckEvent    ack_event    = 14;
+    Ping        ping          = 15; // NEW
+    Pong        pong          = 16; // NEW
+  }
+}

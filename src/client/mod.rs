@@ -1,17 +1,37 @@
 mod ping;
+pub mod params;
+pub mod builder;
 pub mod send;
+pub mod event;
+pub mod connection;
 
-use ping::{start_ping_loop, Shutdown};
+use crate::client::connection::authenticate;
 use crate::tls::generate_or_load_cert;
+use crate::client::event::replay_events;
+use crate::client::params::ClientParams;
+use crate::state::registry::{ClientMetadata};
+use tokio_util::sync::CancellationToken;
 
 use quinn::{ClientConfig, Connection, Endpoint};
 use rustls::{ClientConfig as RustlsClientConfig, RootCertStore};
 
 use std::sync::Arc;
+use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
 
-pub async fn run_client() {
+pub async fn run_client(params: ClientParams, cancel_token: CancellationToken) {
+    let mut registry_map = HashMap::new();
+    for ns in &params.namespaces {
+        registry_map.insert(
+            ns.clone(),
+            ClientMetadata {
+                client_id: params.client_id(),
+                token: params.token.clone(),
+            },
+        );
+    }
+
     let mut endpoint = match Endpoint::client("0.0.0.0:0".parse().unwrap()) {
         Ok(ep) => ep,
         Err(e) => {
@@ -23,25 +43,48 @@ pub async fn run_client() {
     endpoint.set_default_client_config(build_client_config());
 
     loop {
-        match connect_to_server(&endpoint).await {
-            Ok(conn) => {
-                println!("🤝 Connected to server.");
-                match start_ping_loop(conn).await {
-                    Ok(_) => {
-                        println!("🔁 Attempting reconnection after connection closed...");
+        // ✅ Wait for either Ctrl+C OR continue with connection
+        tokio::select! {
+            _ = cancel_token.cancelled() => {
+                println!("🛑 Cancel token received, shutting down client...");
+                break;
+            }
+
+            _ = async {
+                match connect_to_server(&endpoint).await {
+                    Ok(conn) => {
+                        println!("🤝 Connected to server.");
+
+                        if let Err(e) = authenticate(&conn, params.client_id(), params.token(), params.namespaces()).await {
+                            eprintln!("❌ Authentication failed: {e}");
+                            return;
+                        }
+
+                        for ns in &params.namespaces {
+                            println!("🔄 Replaying events for namespace: {}", ns);
+                            if let Err(e) = replay_events(&conn, ns.clone()).await {
+                                eprintln!("❌ Failed to replay events for {}: {e}", ns);
+                            }
+                        }
+
+
+                        // Start ping loop
+                        // if let Err(e) = start_ping_loop(conn).await {
+                        //     eprintln!("❌ Connection loop ended: {e:?}");
+                        // }
+
+                        println!("🔁 Attempting reconnection...");
                     }
-                    Err(Shutdown::ManualInterrupt) => {
-                        println!("👋 Graceful shutdown complete.");
-                        break;
+                    Err(e) => {
+                        eprintln!("❌ Could not connect to server: {e}");
+                        sleep(Duration::from_secs(3)).await;
                     }
                 }
-            }
-            Err(e) => {
-                eprintln!("❌ Could not connect to server: {e}");
-                sleep(Duration::from_secs(3)).await;
-            }
+            } => {}
         }
     }
+
+    println!("👋 Client shut down cleanly.");
 }
 
 fn build_client_config() -> ClientConfig {
