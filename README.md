@@ -21,11 +21,12 @@ H3X is a lightweight QUIC-powered protocol for structured events with authentica
 ## Protocol
 
 ### Frame format
+```
 +------------+-----------------+-------------------+
 | frame_type | payload_length | payload_bytes... |
 | u8 | u32 LE | [length] |
 +------------+-----------------+-------------------+
-
+```
 
 ### Core frames (Protobuf payloads)
 - **Auth**: `{ client_id, token, namespaces[] }`
