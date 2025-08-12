@@ -21,12 +21,11 @@ H3X is a lightweight QUIC-powered protocol for structured events with authentica
 ## Protocol
 
 ### Frame format
-```
-+------------+-----------------+-------------------+
-| frame_type | payload_length | payload_bytes... |
-| u8 | u32 LE | [length] |
-+------------+-----------------+-------------------+
-```
+| Field           | Type        | Meaning            |
+|-----------------|-------------|--------------------|
+| `frame_type`    | `u8`        | Discriminant       |
+| `payload_length`| `u32` (LE)  | Length in bytes    |
+| `payload_bytes` | `[length]`  | Raw payload bytes  |
 
 ### Core frames (Protobuf payloads)
 - **Auth**: `{ client_id, token, namespaces[] }`
@@ -43,7 +42,7 @@ H3X is a lightweight QUIC-powered protocol for structured events with authentica
 5. Client → **AckEvent** for delivered IDs
 
 ## Event Model (Protobuf)
-
+```proto
 message EventPayload {
   string id = 1;                   // UUID v4
   string namespace = 2;            // e.g., "env_namespace"
@@ -53,8 +52,9 @@ message EventPayload {
   int64  timestamp = 6;            // Unix seconds (UTC)
   map<string, string> metadata = 7;// severity, service, env, ...
 }
-
+```
 ## Project Layout
+```text
 .
 ├─ Cargo.toml
 ├─ build.rs              # prost-build (generates src/protocol/*)
@@ -67,7 +67,7 @@ message EventPayload {
 │  └─ utils/             # framing (u8 + u32 LE + bytes)
 ├─ data/                 # sled database (runtime)
 └─ .env.example
-
+```
 
 ## Troubleshooting
 
