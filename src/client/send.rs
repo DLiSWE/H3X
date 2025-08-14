@@ -26,19 +26,19 @@ pub async fn ack_event(
 // Request events for a namespace
 pub async fn fetch_events(
     stream_id: u32,
-    namespace: String,
+    namespaces: Vec<String>,
     max: usize,
     send: &mut SendStream,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let max_events = u32::try_from(max).unwrap_or(u32::MAX);
+    let limit = u32::try_from(max).unwrap_or(u32::MAX);
 
     let frame = pb::Frame {
         version: 1,
         stream_id,
         r#type: pb::FrameType::FetchEvents as i32,
         payload: Some(pb::frame::Payload::FetchEvents(pb::FetchEvents {
-            namespace,
-            max_events,
+            namespaces,
+            limit,
         })),
     };
 

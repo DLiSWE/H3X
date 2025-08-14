@@ -5,7 +5,7 @@ pub mod send;
 pub mod event;
 pub mod connection;
 
-use crate::client::connection::authenticate;
+use crate::client::connection::{authenticate, receive_loop};
 use crate::tls::generate_or_load_cert;
 use crate::client::event::replay_events;
 use crate::client::params::ClientParams;
@@ -43,13 +43,11 @@ pub async fn run_client(params: ClientParams, cancel_token: CancellationToken) {
     endpoint.set_default_client_config(build_client_config());
 
     loop {
-        // ✅ Wait for either Ctrl+C OR continue with connection
         tokio::select! {
             _ = cancel_token.cancelled() => {
                 println!("🛑 Cancel token received, shutting down client...");
                 break;
             }
-
             _ = async {
                 match connect_to_server(&endpoint).await {
                     Ok(conn) => {
@@ -60,18 +58,14 @@ pub async fn run_client(params: ClientParams, cancel_token: CancellationToken) {
                             return;
                         }
 
-                        for ns in &params.namespaces {
-                            println!("🔄 Replaying events for namespace: {}", ns);
-                            if let Err(e) = replay_events(&conn, ns.clone()).await {
-                                eprintln!("❌ Failed to replay events for {}: {e}", ns);
-                            }
+                        // Open one BI stream to fetch+receive events
+                        if let Err(e) = receive_loop(&conn, params.namespaces().to_vec()).await {
+                            eprintln!("❌ Receive loop ended: {e}");
                         }
 
-
-                        // Start ping loop
-                        // if let Err(e) = start_ping_loop(conn).await {
-                        //     eprintln!("❌ Connection loop ended: {e:?}");
-                        // }
+                        if let Err(e) = replay_events(&conn, params.namespaces().to_vec()).await {
+                            eprintln!("❌ Replay events failed: {e}");
+                        }
 
                         println!("🔁 Attempting reconnection...");
                     }

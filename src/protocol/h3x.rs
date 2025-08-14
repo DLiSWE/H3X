@@ -37,11 +37,11 @@ pub struct Event {
 /// Request from client to fetch queued events.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FetchEvents {
-    #[prost(string, tag = "1")]
-    pub namespace: ::prost::alloc::string::String,
+    #[prost(string, repeated, tag = "1")]
+    pub namespaces: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     /// optional limit
     #[prost(uint32, tag = "2")]
-    pub max_events: u32,
+    pub limit: u32,
 }
 /// Acknowledges receipt of a specific event.
 #[derive(Clone, PartialEq, ::prost::Message)]

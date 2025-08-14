@@ -10,7 +10,7 @@ use std::convert::TryFrom;
 
 use crate::state::queue::EventQueue;
 use crate::tls::generate_or_load_cert;
-use crate::state::registry::{self, ClientMetadata, NamespaceRegistry};
+use crate::state::registry::{ClientMetadata, NamespaceRegistry};
 
 use crate::protocol::h3x::{
     Frame as H3XFrame,

@@ -222,44 +222,48 @@ pub async fn handle_fetch_events(
     recv: &mut RecvStream,
     sled_db: &sled::Db,
 ) {
-    let Some(frame::Payload::FetchEvents(FetchEvents { namespace, max_events })) = frame.payload else {
+    let Some(frame::Payload::FetchEvents(FetchEvents { namespaces, limit })) = frame.payload else {
         eprintln!("❌ FetchEvents frame missing payload");
         return;
     };
 
-    let prefix = format!("{}:", namespace);
+    let prefixes: Vec<String> = namespaces.iter().map(|ns| format!("{}:", ns)).collect();
     let mut events: Vec<Event> = Vec::new();
 
-    // 1) Scan persisted frames and collect Events up to max_events
-    for result in sled_db.scan_prefix(prefix.as_bytes()).take(max_events as usize) {
-        match result {
-            Ok((_key, value)) => {
-                if let Some(stored_frame) = decode_stored_frame(&value) {
-                    // Ensure it's an Event and extract it
-                    let Ok(ft) = FrameType::try_from(stored_frame.r#type) else {
-                        eprintln!("⚠️ Unknown stored frame type: {}", stored_frame.r#type);
-                        continue;
-                    };
-                    if ft != FrameType::Event {
-                        eprintln!("⚠️ Skipped non-Event stored frame: {:?}", ft);
-                        continue;
-                    }
-                    match stored_frame.payload {
-                        Some(frame::Payload::Event(ev)) => {
-                            events.push(ev);
+    // 1) Scan persisted frames and collect Events up to limit
+    for prefix in prefixes {
+        println!("🔍 Fetching events for namespace prefix: {}", prefix);    
+        // Use sled's scan_prefix to get all keys starting with the namespace prefix
+        for result in sled_db.scan_prefix(prefix.as_bytes()).take(limit as usize) {
+            match result {
+                Ok((_key, value)) => {
+                    if let Some(stored_frame) = decode_stored_frame(&value) {
+                        // Ensure it's an Event and extract it
+                        let Ok(ft) = FrameType::try_from(stored_frame.r#type) else {
+                            eprintln!("⚠️ Unknown stored frame type: {}", stored_frame.r#type);
+                            continue;
+                        };
+                        if ft != FrameType::Event {
+                            eprintln!("⚠️ Skipped non-Event stored frame: {:?}", ft);
+                            continue;
                         }
-                        _ => eprintln!("⚠️ Stored Event frame missing payload"),
+                        match stored_frame.payload {
+                            Some(frame::Payload::Event(ev)) => {
+                                events.push(ev);
+                            }
+                            _ => eprintln!("⚠️ Stored Event frame missing payload"),
+                        }
+                    } else {
+                        eprintln!("❌ Failed to decode stored frame (not prost?)");
                     }
-                } else {
-                    eprintln!("❌ Failed to decode stored frame (not prost?)");
                 }
-            }
-            Err(e) => {
-                eprintln!("❌ Sled DB scan error: {:?}", e);
+                Err(e) => {
+                    eprintln!("❌ Sled DB scan error: {:?}", e);
+                }
             }
         }
     }
-
+    
     // 2) Send EventsBatch to client
     let response = H3XFrame {
         version: PROTO_VERSION,

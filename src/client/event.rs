@@ -2,11 +2,10 @@ use anyhow::Result;
 use quinn::{Connection, SendStream};
 use tokio::time::{sleep, Duration};
 
-use crate::protocol::h3x as pb;   // prost-generated module
-use crate::protocol::h3x::Frame;  // has read_from / write_to impls
-
-use crate::client::send::fetch_events; // keep your helpers; they should build pb::Frame internally
-use super::send::ack_event;            // same: should send a pb::Frame::AckEvent
+use crate::protocol::h3x as pb;
+use crate::protocol::h3x::Frame;
+use crate::client::send::fetch_events;
+use super::send::ack_event;
 
 pub async fn handle_event_frame(
     frame: pb::Frame,
@@ -51,14 +50,17 @@ pub async fn handle_event_frame(
 
 pub async fn replay_events(
     conn: &Connection,
-    namespace: String,
+    namespaces: Vec<String>,
 ) -> Result<()> {
     // Open bidirectional stream to request replay
     let (mut send, mut recv) = conn.open_bi().await?;
 
     // Send FetchEvents request (your helper should build a pb::Frame internally)
     let stream_id: u32 = send.id().index().try_into().unwrap_or(0);
-    fetch_events(stream_id, namespace.clone(), 100, &mut send).await;
+    
+    if let Err(e) = fetch_events(stream_id, namespaces.clone(), 100, &mut send).await {
+        eprintln!("❌ Failed to send FetchEvents request: {e}");
+    }
 
     // Expect an EventsBatch in response
     let response = match Frame::read_from(&mut recv).await? {

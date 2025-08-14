@@ -40,8 +40,8 @@ message Event {
 
 // Request from client to fetch queued events.
 message FetchEvents {
-  string namespace  = 1;
-  uint32 max_events = 2; // optional limit
+  repeated string namespaces  = 1;
+  uint32 limit = 2; // optional limit
 }
 
 // Acknowledges receipt of a specific event.

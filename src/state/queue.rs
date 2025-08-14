@@ -32,8 +32,8 @@ impl EventQueue {
         };
 
         let tree = self.db.open_tree(ns)?;
-        let id = self.db.generate_id()?; // monotonically increasing per DB
-        let value = frame.encode_to_vec(); // prost -> Vec<u8>
+        let id = self.db.generate_id()?;
+        let value = frame.encode_to_vec();
         tree.insert(id.to_be_bytes(), value)?;
         Ok(())
     }
